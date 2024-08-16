@@ -1,0 +1,9 @@
+[package]
+name = "rust-rendering"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies.rust-embree]
+path = "/home/mujin/workdesk/rust-embree"
+
+[dependencies]
