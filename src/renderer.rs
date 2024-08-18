@@ -13,7 +13,7 @@ fn LoadEguiTextureFromImageBuffer(ctx: &egui::Context, imageBuffer: &ImageBuffer
 
     let colorImage = ColorImage {
         size: [imageBuffer.width() as usize, imageBuffer.height() as usize],
-        pixels: pixels,
+        pixels,
     };
 
     ctx.load_texture("", colorImage, Default::default())
@@ -73,13 +73,13 @@ impl Renderer {
 
         let rays = self.camera.getRays();
 
-        for y in (0..self.camera.imageHeight as u32) {
-            for x in (0..self.camera.imageWidth as u32) {
+        for y in 0..self.camera.imageHeight as u32 {
+            for x in 0..self.camera.imageWidth as u32 {
                 let i: usize = (y * self.camera.imageWidth as u32 + x) as usize;
 
-                let rayhit = CastRay(&self.scene, rays[i]);
+                let rayHit = CastRay(&self.scene, rays[i]);
                 let mut color = Rgb([0, 0, 0]);
-                if rayhit.is_some() {
+                if rayHit.is_some() {
                     color = Rgb([255, 0, 0]);
                 }
                 *imageBuffer.get_pixel_mut(x, y) = color;

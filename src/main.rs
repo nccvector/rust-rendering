@@ -16,15 +16,19 @@ use crate::renderer::Renderer;
 
 impl App for Renderer {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
-        // Render every frame
-        self.renderToRenderTexture(ctx);
-
         CentralPanel::default().show(ctx, |ui: &mut Ui| {
+            let size = ui.min_rect().max;
+
+            // Render every frame
+            self.camera.resize(size.x, size.y);
+            self.renderToRenderTexture(ctx);
+
             ui.label("Hello bro");
+
             if let Some(ref texture) = self.renderTexture {
                 let img = Image::from_texture(texture);
                 img.paint_at(ui, Rect {
-                    min: egui::pos2(0.0, 0.0),
+                    min: egui::pos2(ui.min_rect().min.x, ui.min_rect().min.y),
                     max: egui::pos2(self.camera.imageWidth, self.camera.imageHeight),
                 });
             }

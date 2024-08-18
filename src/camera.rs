@@ -42,6 +42,7 @@ pub struct Camera {
     transform: Matrix4<f32>,
     cameraMatrix: Matrix3<f32>,
     cameraMatrixInverse: Matrix3<f32>,
+    pub verticalFov: f32,
     pub imageWidth: f32,
     pub imageHeight: f32,
 }
@@ -53,6 +54,7 @@ impl Camera {
             transform,
             cameraMatrix: _cameraMatrix,
             cameraMatrixInverse: _cameraMatrix.try_inverse().unwrap(),
+            verticalFov,
             imageWidth,
             imageHeight,
         }
@@ -77,5 +79,22 @@ impl Camera {
         }
 
         vec
+    }
+
+    pub fn resize(&mut self, imageWidth: f32, imageHeight: f32) {
+        self.imageWidth = imageWidth;
+        self.imageHeight = imageHeight;
+        self.recomputeCameraMatrix();
+    }
+
+    pub fn setFov(&mut self, verticalFov: f32) {
+        self.verticalFov = verticalFov;
+        self.recomputeCameraMatrix();
+    }
+
+    fn recomputeCameraMatrix(&mut self) {
+        let _cameraMatrix = ComputeCameraMatrix(self.verticalFov, self.imageWidth, self.imageHeight);
+        self.cameraMatrix = _cameraMatrix;
+        self.cameraMatrixInverse = _cameraMatrix.try_inverse().unwrap();
     }
 }
