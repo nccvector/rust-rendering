@@ -78,10 +78,18 @@ impl Renderer {
                 let i: usize = (y * self.camera.imageWidth as u32 + x) as usize;
 
                 let rayHit = CastRay(&self.scene, rays[i]);
+
                 let mut color = Rgb([0, 0, 0]);
                 if rayHit.is_some() {
-                    color = Rgb([255, 0, 0]);
+                    let hit = rayHit.unwrap().hit;
+                   
+                    color = Rgb([
+                        (255.0 * hit.Ng_x) as u8,
+                        (255.0 * hit.Ng_y) as u8,
+                        (255.0 * hit.Ng_z) as u8,
+                    ]);
                 }
+
                 *imageBuffer.get_pixel_mut(x, y) = color;
             }
         }
