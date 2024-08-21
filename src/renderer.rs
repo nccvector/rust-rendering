@@ -5,18 +5,22 @@ use nalgebra::Matrix4;
 use rust_embree::{CastRay, CommitScene, CreateDevice, CreateScene, CreateSphereGeometry, CreateTriangleGeometry, Device, Scene};
 use crate::camera::Camera;
 
-fn LoadEguiTextureFromImageBuffer(ctx: &egui::Context, imageBuffer: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> TextureHandle {
-    let pixels: Vec<Color32> = imageBuffer.pixels().map(|p| {
+
+pub fn CreateEguiColorImageFromImageBuffer(imageBuffer: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> ColorImage {
+     let pixels: Vec<Color32> = imageBuffer.pixels().map(|p| {
         let [r, g, b] = p.0;
         Color32::from_rgba_premultiplied(r, g, b, 255)
     }).collect();
 
-    let colorImage = ColorImage {
+    ColorImage {
         size: [imageBuffer.width() as usize, imageBuffer.height() as usize],
         pixels,
-    };
+    }
+}
 
-    ctx.load_texture("", colorImage, Default::default())
+fn LoadEguiTextureFromImageBuffer(ctx: &egui::Context, imageBuffer: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> TextureHandle {
+    let eguiColorImage = CreateEguiColorImageFromImageBuffer(imageBuffer);
+    ctx.load_texture("", eguiColorImage, Default::default())
 }
 
 pub struct Renderer {
@@ -32,34 +36,6 @@ impl Renderer {
         let scene = CreateScene(&device);
         let camera = Camera::new(Matrix4::<f32>::identity(), 65.0, 640.0, 480.0);
 
-        // Quad vertices and indices
-        let vertices: &[(f32, f32, f32)] = &[
-            (-1.5, -1.5, 0.0),
-            (1.5, -1.5, 0.0),
-            (1.5, 1.5, 0.0),
-            (-1.5, 1.5, 0.0)
-        ];
-        let indices: &[(i32, i32, i32)] = &[
-            (0, 1, 2),
-            (0, 2, 3),
-        ];
-
-        CreateTriangleGeometry(
-            &device,
-            &scene,
-            vertices,
-            indices,
-        );
-
-        CreateSphereGeometry(
-            &device,
-            &scene,
-            (0.0, 0.0, 0.0),
-            1.0,
-        );
-
-        CommitScene(&scene);
-
         Self {
             renderTexture: None,
             camera,
@@ -68,7 +44,38 @@ impl Renderer {
         }
     }
 
-    pub fn renderToRenderTexture(&mut self, ctx: &egui::Context) {
+    pub fn createDemoScene(&mut self) {
+        // Quad vertices and indices
+        let vertices: &[(f32, f32, f32)] = &[
+            (-1.5, -1.5, 0.0),
+            (1.5, -1.5, 0.0),
+            (1.5, 1.5, 0.0),
+            (-1.5, 1.5, 0.0)
+        ];
+
+        let indices: &[(i32, i32, i32)] = &[
+            (0, 1, 2),
+            (0, 2, 3),
+        ];
+
+        CreateTriangleGeometry(
+            &self.device,
+            &self.scene,
+            vertices,
+            indices,
+        );
+
+        CreateSphereGeometry(
+            &self.device,
+            &self.scene,
+            (0.0, 0.0, 0.0),
+            1.0,
+        );
+
+        CommitScene(&self.scene);
+    }
+
+    pub fn renderImageBuffer(&mut self) -> ImageBuffer::<Rgb<u8>, Vec<u8>> {
         let mut imageBuffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.camera.imageWidth as u32, self.camera.imageHeight as u32);
 
         let rays = self.camera.getRays();
@@ -82,7 +89,7 @@ impl Renderer {
                 let mut color = Rgb([0, 0, 0]);
                 if rayHit.is_some() {
                     let hit = rayHit.unwrap().hit;
-                   
+
                     color = Rgb([
                         (255.0 * hit.Ng_x) as u8,
                         (255.0 * hit.Ng_y) as u8,
@@ -94,6 +101,14 @@ impl Renderer {
             }
         }
 
-        self.renderTexture = Some(LoadEguiTextureFromImageBuffer(ctx, &imageBuffer));
+        imageBuffer
+    }
+
+    pub fn renderNormalsToTexture(&mut self, ctx: Option<&egui::Context>) {
+        let imageBuffer = self.renderImageBuffer();
+
+        if ctx.is_some() {
+            self.renderTexture = Some(LoadEguiTextureFromImageBuffer(&ctx.unwrap(), &imageBuffer));
+        }
     }
 }

@@ -21,7 +21,7 @@ impl App for Renderer {
 
             // Render every frame
             self.camera.resize(size.x, size.y);
-            self.renderToRenderTexture(ctx);
+            self.renderNormalsToTexture(Some(ctx));
 
             ui.label("Hello bro");
 
@@ -38,6 +38,7 @@ impl App for Renderer {
 
 fn main() {
     let mut renderer = Renderer::new();
+    renderer.createDemoScene();
 
     // let (mut rl, thread) = raylib::init().size(800, 600).title("Hello").build();
     //
