@@ -1,16 +1,18 @@
-use nalgebra::{Matrix3, Matrix4, Vector3};
+use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
 
 use crate::vec_ops::*;
 
 fn ComputeCameraMatrix(verticalFOVDegrees: f32, imageWidth: f32, imageHeight: f32) -> Matrix3<f32> {
     // Convert vertical FOV from degrees to radians
     let verticalFOVRadians = verticalFOVDegrees.to_radians();
-    let aspectRatio = imageWidth / imageHeight;
-    let horizontalFOVRadians = aspectRatio * verticalFOVRadians;
 
+    // Compute image plane distance and horizontal FOV
+    let baseDistance = (imageHeight / 2.0) / (verticalFOVRadians / 2.0).tan();    // distance of image plane from camera origin
+    let horizontalFOVRadians = 2.0 * ((imageWidth / 2.0) / baseDistance).atan();
 
-    let fx = imageWidth / (2.0 * (horizontalFOVRadians / 2.0).tan());
-    let fy = imageHeight / (2.0 * (verticalFOVRadians / 2.0).tan());
+    // Compute camera matrix parameters
+    let fy = (imageHeight - 1.0) / (2.0 * (verticalFOVRadians / 2.0).tan());
+    let fx = (imageWidth - 1.0) / (2.0 * (horizontalFOVRadians / 2.0).tan());
 
     // Compute the image center
     let cx = (imageWidth - 1.0) / 2.0;
@@ -29,8 +31,8 @@ fn ComputeCameraMatrix(verticalFOVDegrees: f32, imageWidth: f32, imageHeight: f3
 fn GenerateHomogenousPixelCoordinates(imageWidth: u32, imageHeight: u32) -> Vec<Vector3<f32>> {
     let mut pixels = Vec::new();
 
-    for y in 0..imageHeight {
-        for x in 0..imageWidth {
+    for y in 0..imageHeight as usize {
+        for x in 0..imageWidth as usize {
             pixels.push(Vector3::new(x as f32, y as f32, 1.0));
         }
     }
@@ -66,7 +68,11 @@ impl Camera {
 
         // Get rays for all pixels
         // let rayOrigins =
-        let rayDirections = pixelCoordsHomo.transform(&self.cameraMatrixInverse).normalize().mul_scalar(-1.0);
+        let rayDirections = pixelCoordsHomo.transform(&self.cameraMatrixInverse).normalize();
+        let rot = Rotation3::from_axis_angle(&Vector3::y_axis(), 180.0_f32.to_radians());
+        let rayDirections = rayDirections.transform(rot.matrix());
+
+        // rotate ray directions about world y axis to look towards the origin
         let rayOrigins = rayDirections.zeros().add_vector(Vector3::<f32>::new(0.0, 0.0, 10.0));
 
         let mut vec: Vec<(f32, f32, f32, f32, f32, f32)> = Vec::with_capacity(rayDirections.len());
