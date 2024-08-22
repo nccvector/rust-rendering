@@ -8,6 +8,7 @@ use eframe::egui::ImageData::{Color as EguiColor, Color};
 use raylib::ffi::{DrawCube, GenMeshCylinder};
 use raylib::prelude::*;
 
+
 mod vec_ops;
 mod camera;
 mod renderer;
@@ -39,6 +40,9 @@ impl App for Renderer {
 fn main() {
     let mut renderer = Renderer::new();
     renderer.createDemoScene();
+    renderer.camera.resize(35.0, 20.0);
+
+    // renderer.loadScene();
 
     // let (mut rl, thread) = raylib::init().size(800, 600).title("Hello").build();
     //
@@ -64,7 +68,6 @@ fn main() {
     //
     //     {
     //         let mut d2 = d.begin_mode3D(camera);
-    //
     //         d2.draw_model_ex(&modelCyl, Vector3::zero(), Vector3::forward(), -90.0, Vector3::one(), RaylibColor::RED);
     //         d2.draw_model_ex(&modelCyl, Vector3::zero(), Vector3::forward(), 0.0, Vector3::one(), RaylibColor::GREEN);
     //         d2.draw_model_ex(&modelCyl, Vector3::zero(), Vector3::right(), 90.0, Vector3::one(), RaylibColor::BLUE);
