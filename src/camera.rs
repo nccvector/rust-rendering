@@ -75,16 +75,12 @@ impl Camera {
         // rotate ray directions about world y axis to look towards the origin
         let rayOrigins = rayDirections.zeros().add_vector(Vector3::<f32>::new(0.0, 0.0, 10.0));
 
-        let mut vec: Vec<(f32, f32, f32, f32, f32, f32)> = Vec::with_capacity(rayDirections.len());
-
-        for (origin, direction) in rayOrigins.iter().zip(rayDirections.iter()) {
-            vec.push((
+        rayOrigins.iter().zip(rayDirections.iter()).map(|(origin, direction)| {
+            (
                 origin[0], origin[1], origin[2],
                 direction[0], direction[1], direction[2]
-            ));
-        }
-
-        vec
+            )
+        }).collect()
     }
 
     pub fn resize(&mut self, imageWidth: f32, imageHeight: f32) {
