@@ -1,6 +1,6 @@
 use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
 
-use crate::vec_ops::*;
+use itertools::Itertools;
 
 fn ComputeCameraMatrix(verticalFOVDegrees: f32, imageWidth: f32, imageHeight: f32) -> Matrix3<f32> {
     // Convert vertical FOV from degrees to radians
@@ -28,16 +28,9 @@ fn ComputeCameraMatrix(verticalFOVDegrees: f32, imageWidth: f32, imageHeight: f3
     cameraMatrix
 }
 
-fn GenerateHomogenousPixelCoordinates(imageWidth: u32, imageHeight: u32) -> Vec<Vector3<f32>> {
-    let mut pixels = Vec::new();
-
-    for y in 0..imageHeight as usize {
-        for x in 0..imageWidth as usize {
-            pixels.push(Vector3::new(x as f32, y as f32, 1.0));
-        }
-    }
-
-    pixels
+fn GenerateHomogenousPixelCoordinates(imageWidth: u32, imageHeight: u32) -> impl Iterator<Item=Vector3<f32>> {
+    (0..imageHeight).cartesian_product(0..imageWidth)
+                    .map(|(y, x)| Vector3::new(x as f32, y as f32, 1.0))
 }
 
 pub struct Camera {
@@ -63,24 +56,19 @@ impl Camera {
     }
 
     pub fn getRays(&mut self) -> Vec<(f32, f32, f32, f32, f32, f32)> {
-        // Get pixel coordinates
-        let pixelCoordsHomo = GenerateHomogenousPixelCoordinates(self.imageWidth as u32, self.imageHeight as u32);
-
-        // Get rays for all pixels
-        // let rayOrigins =
-        let rayDirections = pixelCoordsHomo.transform(&self.cameraMatrixInverse).normalize();
+        // Compute the rotation matrix for all pixels
         let rot = Rotation3::from_axis_angle(&Vector3::y_axis(), 180.0_f32.to_radians());
-        let rayDirections = rayDirections.transform(rot.matrix());
+        let rotationMatrix = rot.matrix();
 
-        // rotate ray directions about world y axis to look towards the origin
-        let rayOrigins = rayDirections.zeros().add_vector(Vector3::<f32>::new(0.0, 0.0, 10.0));
-
-        rayOrigins.iter().zip(rayDirections.iter()).map(|(origin, direction)| {
-            (
-                origin[0], origin[1], origin[2],
-                direction[0], direction[1], direction[2]
-            )
-        }).collect()
+        GenerateHomogenousPixelCoordinates(self.imageWidth as u32, self.imageHeight as u32)
+            .map(|pixelCoords| {
+                let direction = rotationMatrix * (&self.cameraMatrixInverse * pixelCoords).normalize();
+                (
+                    0.0, 0.0, 10.0,
+                    direction[0], direction[1], direction[2]
+                )
+            })
+            .collect()
     }
 
     pub fn resize(&mut self, imageWidth: f32, imageHeight: f32) {
