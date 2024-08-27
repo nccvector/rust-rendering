@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies.rust-embree]
-path = "/home/mujin/workdesk/rust-embree"
+path = "../rust-embree"
 
 [dependencies]
 eframe = "0.28.1"
@@ -12,6 +12,7 @@ image = "0.25.2"
 nalgebra = "0.33.0"
 raylib = "5.0.1"
 russimp = "3.2.0"
+itertools = "0.12.1"
 
 
 [dev-dependencies]
