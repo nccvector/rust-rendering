@@ -1,4 +1,4 @@
-use nalgebra::{Matrix3, Matrix4, Rotation3, Vector3};
+use nalgebra::{Matrix3, Matrix4, Point3, Rotation3, SMatrix, Vector3, Vector4};
 
 use itertools::Itertools;
 
@@ -30,7 +30,7 @@ fn ComputeCameraMatrix(verticalFOVDegrees: f32, imageWidth: f32, imageHeight: f3
 
 fn GenerateHomogenousPixelCoordinates(imageWidth: u32, imageHeight: u32) -> impl Iterator<Item=Vector3<f32>> {
     (0..imageHeight).cartesian_product(0..imageWidth)
-                    .map(|(y, x)| Vector3::new(x as f32, y as f32, 1.0))
+        .map(|(y, x)| Vector3::new(x as f32, y as f32, 1.0))
 }
 
 pub struct Camera {
@@ -57,18 +57,30 @@ impl Camera {
 
     pub fn getRays(&mut self) -> Vec<(f32, f32, f32, f32, f32, f32)> {
         // Compute the rotation matrix for all pixels
-        let rot = Rotation3::from_axis_angle(&Vector3::y_axis(), 180.0_f32.to_radians());
-        let rotationMatrix = rot.matrix();
 
         GenerateHomogenousPixelCoordinates(self.imageWidth as u32, self.imageHeight as u32)
             .map(|pixelCoords| {
-                let direction = rotationMatrix * (&self.cameraMatrixInverse * pixelCoords).normalize();
+                let direction = (&self.cameraMatrixInverse * pixelCoords).normalize();
                 (
-                    0.0, 0.0, 10.0,
+                    0.0, 0.0, 0.0,
                     direction[0], direction[1], direction[2]
                 )
             })
             .collect()
+    }
+
+    pub fn getTransformedRays(&mut self) -> Vec<(f32, f32, f32, f32, f32, f32)> {
+        // Extract the first 3 elements of the last column of the transform matrix and store them in a variable
+        self.getRays().iter().map(|ray| {
+            let (_x1, _y1, _z1, x2, y2, z2) = *ray;
+            let newDir = self.transform * Vector4::<f32>::new(x2, y2, z2, 0.0);
+            let translation: Vector3<f32> = self.transform.fixed_view::<3, 1>(0, 3).into();
+            (translation.x, translation.y, translation.z, newDir.x, newDir.y, newDir.z)
+        }).collect()
+    }
+
+    pub fn setTransform(&mut self, transform: Matrix4<f32>) {
+        self.transform = transform;
     }
 
     pub fn resize(&mut self, imageWidth: f32, imageHeight: f32) {

@@ -1,7 +1,7 @@
 use eframe::egui;
 use eframe::egui::{Color32, ColorImage, TextureHandle};
 use image::{ImageBuffer, Rgb};
-use nalgebra::Matrix4;
+use nalgebra::{Matrix4, Rotation3, Vector3};
 use rust_embree::{CastRay, CommitScene, CreateDevice, CreateScene, CreateSphereGeometry, CreateTriangleGeometry, EmbreeDevice, EmbreeScene};
 use crate::camera::Camera;
 
@@ -39,7 +39,15 @@ impl Renderer {
     pub fn new() -> Self {
         let device = CreateDevice();
         let scene = CreateScene(&device);
-        let camera = Camera::new(Matrix4::<f32>::identity(), 65.0, 640.0, 480.0);
+        let mut camera = Camera::new(Matrix4::<f32>::identity(), 45.0, 640.0, 480.0);
+
+        let rotation = Rotation3::from_axis_angle(&Vector3::y_axis(), 180.0_f32.to_radians());
+        let translation = Vector3::<f32>::new(0.0, 0.0, 5.0);
+        let mut t = Matrix4::<f32>::identity();
+        t.fixed_view_mut::<3, 3>(0, 0).copy_from(&rotation.matrix());
+        t.fixed_view_mut::<3, 1>(0, 3).copy_from(&translation);
+
+        camera.setTransform(t);
 
         Self {
             renderTexture: None,
@@ -113,10 +121,10 @@ impl Renderer {
         }
     }
 
-    pub fn renderImageBuffer(&mut self) -> ImageBuffer::<Rgb<u8>, Vec<u8>> {
+    pub fn renderImageBuffer(&mut self) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
         let mut imageBuffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.camera.imageWidth as u32, self.camera.imageHeight as u32);
 
-        let mut rays = self.camera.getRays();
+        let mut rays = self.camera.getTransformedRays();
         let totalNumRays = rays.iter().count();
 
         for y in 0..self.camera.imageHeight as u32 {
