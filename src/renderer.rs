@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::thread;
 use eframe::egui;
 use eframe::egui::{Color32, ColorImage, TextureHandle};
 use image::{ImageBuffer, Rgb};
@@ -34,6 +35,7 @@ fn LoadEguiTextureFromImageBuffer(ctx: &egui::Context, imageBuffer: &ImageBuffer
 pub struct Renderer {
     pub renderTexture: Option<TextureHandle>,
     pub camera: Camera,
+    imageBuffer: ImageBuffer<Rgb<u8>, Vec<u8>>,
     device: EmbreeDevice,
     scene: EmbreeScene,
 }
@@ -45,6 +47,7 @@ impl Renderer {
 
         Self {
             renderTexture: None,
+            imageBuffer: ImageBuffer::default(),
             camera: Camera::new(Matrix4::<f32>::identity(), 45.0, 640.0, 480.0),
             device,
             scene,
@@ -115,20 +118,18 @@ impl Renderer {
         }
     }
 
-    pub fn renderImageBuffer(&mut self) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-        let mut imageBuffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.camera.imageWidth as u32, self.camera.imageHeight as u32);
-
-        let mut rays = self.camera.getTransformedRays();
+    fn renderChunk(&mut self, rays: &Vec<(f32, f32, f32, f32, f32, f32)>, chunk: (u32, u32, u32, u32)) {
         let totalNumRays = rays.iter().count();
 
-        for y in 0..self.camera.imageHeight as u32 {
-            for x in 0..self.camera.imageWidth as u32 {
+        let (minX, minY, maxX, maxY) = chunk;
+        for y in minY..maxY {
+            for x in minX..maxX {
                 let i: usize = (y * self.camera.imageWidth as u32 + x) as usize;
 
                 // Reverse rays to rotate the final image 180 degrees
                 let rayHit = CastRay(&self.scene, rays[totalNumRays - 1 - i]);
 
-                let mut color = Rgb([0, 0, 0]);
+                let mut color = Rgb([255, 0, 255]);
                 if rayHit.is_some() {
                     let hit = rayHit.unwrap().hit;
 
@@ -139,11 +140,32 @@ impl Renderer {
                     ]);
                 }
 
-                *imageBuffer.get_pixel_mut(x, y) = color;
+                *self.imageBuffer.get_pixel_mut(x, y) = color;
             }
         }
+    }
 
-        imageBuffer
+    pub fn renderImageBuffer(&mut self) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+        self.imageBuffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.camera.imageWidth as u32, self.camera.imageHeight as u32);
+
+        let rays = self.camera.getTransformedRays();
+
+        let numThreads: u32 = 10;
+        let chunkWidth = self.camera.imageWidth as u32 / numThreads;
+
+        let mut handles = vec![];
+
+        for i in 0..numThreads {
+            let handle = thread::spawn(move || {
+                self.renderChunk(&rays, (i * chunkWidth, 0, (i + 1) * chunkWidth, self.imageBuffer.height()));
+            });
+
+            handles.push(handle);
+        }
+
+        for handle in handles { handle.join().unwrap(); }
+
+        self.imageBuffer.clone()
     }
 
     pub fn renderNormalsToTexture(&mut self, ctx: Option<&egui::Context>) {
