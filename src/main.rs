@@ -1,18 +1,22 @@
 #![allow(non_snake_case)]
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use raylib::color::Color as RaylibColor;
 use eframe::{egui, App, NativeOptions};
 use eframe::egui::{Image, Rect, Ui};
 use eframe::egui::CentralPanel;
 use eframe::egui::ImageData::{Color as EguiColor, Color};
+use nalgebra::{Matrix4, Rotation3, Vector3};
 use raylib::ffi::{DrawCube, GenMeshCylinder};
-use raylib::prelude::*;
 
 
 mod vec_ops;
-mod camera;
-mod renderer;
 
+mod camera;
+use crate::camera::Camera;
+
+mod renderer;
 use crate::renderer::Renderer;
 
 impl App for Renderer {
@@ -38,9 +42,12 @@ impl App for Renderer {
 }
 
 fn main() {
+
     let mut renderer = Renderer::new();
+    renderer.camera.setRotation(&Vector3::y_axis(), 180.0_f32.to_radians());
+    renderer.camera.setTranslation(&Vector3::new(0.0, 0.0, 5.0));
+
     renderer.createDemoScene();
-    renderer.camera.resize(35.0, 20.0);
 
     // renderer.loadScene();
 

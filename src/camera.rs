@@ -1,4 +1,4 @@
-use nalgebra::{Matrix3, Matrix4, Point3, Rotation3, SMatrix, Vector3, Vector4};
+use nalgebra::{Matrix3, Matrix4, Point3, Rotation3, SMatrix, UnitVector3, Vector3, Vector4};
 
 use itertools::Itertools;
 
@@ -81,6 +81,14 @@ impl Camera {
 
     pub fn setTransform(&mut self, transform: Matrix4<f32>) {
         self.transform = transform;
+    }
+
+    pub fn setRotation(&mut self, axis: &UnitVector3<f32>, angle: f32){
+        self.transform.fixed_view_mut::<3, 3>(0, 0).copy_from(Rotation3::from_axis_angle(axis, angle).matrix());
+    }
+
+    pub fn setTranslation(&mut self, translation: &Vector3<f32>){
+        self.transform.fixed_view_mut::<3, 1>(0, 3).copy_from(translation);
     }
 
     pub fn resize(&mut self, imageWidth: f32, imageHeight: f32) {
