@@ -194,13 +194,15 @@ impl Renderer {
 
         for i in 0..numThreads {
             let imageBuf = Arc::clone(&imageBuffer);
+            let camera = Arc::new(self.camera.clone());
+            let scene = Arc::clone(&self.scene);
             let rays = rays.clone();
 
             let handle = thread::spawn(move || {
                 Renderer::renderChunk(
                     imageBuf,
-                    Arc::clone(&self.scene),
-                    Arc::new(self.camera.clone()),
+                    Arc::clone(&scene),
+                    Arc::clone(&camera),
                     &rays,
                     (i * chunkWidth, 0, (i + 1) * chunkWidth, imageHeight)
                 );
