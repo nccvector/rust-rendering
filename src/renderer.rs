@@ -1,11 +1,14 @@
 use std::cell::RefCell;
+use std::ops::DerefMut;
+use std::ptr::null;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use eframe::egui;
 use eframe::egui::{Color32, ColorImage, TextureHandle};
 use image::{ImageBuffer, Rgb};
 use nalgebra::{Matrix4, Rotation3, Vector3};
-use rust_embree::{CastRay, CommitScene, CreateDevice, CreateScene, CreateSphereGeometry, CreateTriangleGeometry, EmbreeDevice, EmbreeScene};
+use rust_embree::{CastRay, CreateSphereGeometry, CreateTriangleGeometry};
 
 use crate::camera::Camera;
 
@@ -13,6 +16,7 @@ use russimp::node::Node;
 use russimp::property::Property;
 use russimp::scene::PostProcess;
 use russimp::{property::PropertyStore, scene::Scene};
+use rust_embree::bindings_embree::{rtcCommitGeometry, rtcCommitScene, rtcNewDevice, rtcNewScene, RTCDevice, RTCDeviceTy, RTCScene, RTCSceneTy};
 
 
 pub fn CreateEguiColorImageFromImageBuffer(imageBuffer: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> ColorImage {
@@ -36,21 +40,21 @@ pub struct Renderer {
     pub renderTexture: Option<TextureHandle>,
     pub camera: Camera,
     imageBuffer: ImageBuffer<Rgb<u8>, Vec<u8>>,
-    device: EmbreeDevice,
-    scene: EmbreeScene,
+    device: Arc<RTCDeviceTy>,
+    scene: Arc<RTCSceneTy>,
 }
 
 impl Renderer {
     pub fn new() -> Self {
-        let device = CreateDevice();
-        let scene = CreateScene(&device);
+        let device = unsafe { Arc::from_raw(rtcNewDevice(null())) };
+        let scene = unsafe { Arc::from_raw(rtcNewScene(Arc::into_raw(Arc::clone(&device)) as RTCDevice)) };
 
         Self {
             renderTexture: None,
             imageBuffer: ImageBuffer::default(),
             camera: Camera::new(Matrix4::<f32>::identity(), 45.0, 640.0, 480.0),
-            device,
-            scene,
+            device: device,
+            scene: scene,
         }
     }
 
@@ -68,21 +72,24 @@ impl Renderer {
             (0, 2, 3),
         ];
 
+        let device = Arc::into_raw(Arc::clone(&self.device)) as RTCDevice;
+        let scene = Arc::into_raw(Arc::clone(&self.scene)) as RTCScene;
+
         CreateTriangleGeometry(
-            &self.device,
-            &self.scene,
+            device,
+            scene,
             vertices,
             indices,
         );
 
         CreateSphereGeometry(
-            &self.device,
-            &self.scene,
+            device,
+            scene,
             (0.0, 0.0, 0.0),
             1.0,
         );
 
-        CommitScene(&self.scene);
+        unsafe { rtcCommitScene(scene) };
     }
 
     pub fn loadScene(&mut self) {
@@ -113,21 +120,27 @@ impl Renderer {
                 indices.push((face.0[0], face.0[1], face.0[2]));
             }
 
-            CreateTriangleGeometry(&self.device, &self.scene, &vertices, &indices);
-            CommitScene(&self.scene);
+            CreateTriangleGeometry(
+                Arc::into_raw(self.device.clone()) as RTCDevice,
+                Arc::into_raw(self.scene.clone()) as RTCScene,
+                &vertices,
+                &indices,
+            );
+
+            unsafe { rtcCommitScene(Arc::into_raw(self.scene.clone()) as RTCScene) };
         }
     }
 
-    fn renderChunk(&mut self, rays: &Vec<(f32, f32, f32, f32, f32, f32)>, chunk: (u32, u32, u32, u32)) {
+    fn renderChunk(imageBuffer: Arc<Mutex<ImageBuffer<Rgb<u8>, Vec<u8>>>>, scene: Arc<RTCSceneTy>, camera: Arc<Camera>, rays: &Vec<(f32, f32, f32, f32, f32, f32)>, chunk: (u32, u32, u32, u32)) {
         let totalNumRays = rays.iter().count();
 
         let (minX, minY, maxX, maxY) = chunk;
         for y in minY..maxY {
             for x in minX..maxX {
-                let i: usize = (y * self.camera.imageWidth as u32 + x) as usize;
+                let i: usize = (y * camera.imageWidth as u32 + x) as usize;
 
                 // Reverse rays to rotate the final image 180 degrees
-                let rayHit = CastRay(&self.scene, rays[totalNumRays - 1 - i]);
+                let rayHit = CastRay(Arc::into_raw(scene.clone()) as RTCScene, rays[totalNumRays - 1 - i]);
 
                 let mut color = Rgb([255, 0, 255]);
                 if rayHit.is_some() {
@@ -140,15 +153,39 @@ impl Renderer {
                     ]);
                 }
 
-                *self.imageBuffer.get_pixel_mut(x, y) = color;
+                let mut buffer = imageBuffer.lock().unwrap();
+                *buffer.get_pixel_mut(x, y) = color;
             }
         }
     }
 
+
     pub fn renderImageBuffer(&mut self) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-        self.imageBuffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.camera.imageWidth as u32, self.camera.imageHeight as u32);
+        let imageBuffer = Arc::new(Mutex::new(ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.camera.imageWidth as u32, self.camera.imageHeight as u32)));
+        let imageWidth = self.imageBuffer.width() as u32;
+        let imageHeight = self.imageBuffer.height() as u32;
 
         let rays = self.camera.getTransformedRays();
+        let totalNumRays = rays.iter().count();
+
+        // // Closure with `renderChunk` logic
+        // for y in 0..self.imageBuffer.height() {
+        //     for x in 0..self.imageBuffer.width() {
+        //         let ray_index = (y * self.imageBuffer.width() + x) as usize;
+        //         if let Some(rayHit) = CastRay(&(Arc::into_raw(self.scene.clone()) as RTCScene), rays[totalNumRays - 1 - ray_index]) {
+        //             let hit = rayHit.hit;
+        //             let color = Rgb([
+        //                 (255.0 * hit.Ng_x) as u8,
+        //                 (255.0 * hit.Ng_y) as u8,
+        //                 (255.0 * hit.Ng_z) as u8,
+        //             ]);
+        //             *self.imageBuffer.get_pixel_mut(x, y) = color;
+        //         }
+        //     }
+        // }
+        //
+        // self.imageBuffer.clone()
+
 
         let numThreads: u32 = 10;
         let chunkWidth = self.camera.imageWidth as u32 / numThreads;
@@ -156,17 +193,29 @@ impl Renderer {
         let mut handles = vec![];
 
         for i in 0..numThreads {
+            let imageBuf = Arc::clone(&imageBuffer);
+            let rays = rays.clone();
+
             let handle = thread::spawn(move || {
-                self.renderChunk(&rays, (i * chunkWidth, 0, (i + 1) * chunkWidth, self.imageBuffer.height()));
+                Renderer::renderChunk(
+                    imageBuf,
+                    Arc::clone(&self.scene),
+                    Arc::new(self.camera.clone()),
+                    &rays,
+                    (i * chunkWidth, 0, (i + 1) * chunkWidth, imageHeight)
+                );
             });
 
             handles.push(handle);
         }
 
-        for handle in handles { handle.join().unwrap(); }
+        for handle in handles {
+            handle.join().unwrap();
+        }
 
         self.imageBuffer.clone()
     }
+
 
     pub fn renderNormalsToTexture(&mut self, ctx: Option<&egui::Context>) {
         let imageBuffer = self.renderImageBuffer();

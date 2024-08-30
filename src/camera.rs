@@ -33,6 +33,7 @@ fn GenerateHomogenousPixelCoordinates(imageWidth: u32, imageHeight: u32) -> impl
         .map(|(y, x)| Vector3::new(x as f32, y as f32, 1.0))
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Camera {
     transform: Matrix4<f32>,
     cameraMatrix: Matrix3<f32>,
