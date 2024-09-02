@@ -1,2 +1,7 @@
 /target
 *.lock
+.idea
+cmake-build-debug
+build
+
+nohup*
