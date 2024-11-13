@@ -1,0 +1,3 @@
+[submodule "rust-embree"]
+	path = rust-embree
+	url = git@github.com:nccvector/rust-embree.git
